@@ -112,6 +112,7 @@ def generate_launch_description():
         "config",
         "ros2_controllers.yaml",
     )
+
     ros2_control_node = Node(
         package="controller_manager",
         executable="ros2_control_node",
@@ -144,25 +145,20 @@ def generate_launch_description():
         arguments=["hand_controller", "-c", "/controller_manager"],
     )
 
-    isaac_franka_moveit_config_path = os.path.join(
-        get_package_share_directory('franka_moveit_config'))
+    # Generate URDF from xacro with ros2_control section for Isaac Sim
+    franka_moveit_config_path = get_package_share_directory('franka_moveit_config')
+    xacro_file = os.path.join(franka_moveit_config_path, 'config', 'panda.urdf.xacro')
+    robot_description_content = xacro.process_file(
+        xacro_file,
+        mappings={'ros2_control_hardware_type': 'isaac'}
+    ).toxml()
 
-    xacro_file = os.path.join(isaac_franka_moveit_config_path,
-                              'config',
-                              'panda.urdf.xacro')
-    urdf_path = os.path.join(isaac_franka_moveit_config_path, 'config', 'panda.urdf')
-    # xacroをロード
-    doc = xacro.process_file(xacro_file, mappings={'use_sim' : 'true', 
-                                                   "ros2_control_hardware_type": "isaac"})
-    # xacroを展開してURDFを生成
-    robot_desc = doc.toprettyxml(indent='  ')
-    f = open(urdf_path, 'w')
-    f.write(robot_desc)
-    f.close()
-    
-    panda_description_path = os.path.join(
-        get_package_share_directory('moveit_resources_panda_description'))
-    urdf_model_path = os.path.join(panda_description_path, 'urdf', 'panda.urdf')
+    # Write URDF to file for Isaac Sim
+    import tempfile
+    urdf_file = tempfile.NamedTemporaryFile(mode='w', suffix='.urdf', delete=False)
+    urdf_file.write(robot_description_content)
+    urdf_file.close()
+    urdf_model_path = urdf_file.name
 
     isaac_spawn_robot = Node(
         package="isaac_ros2_scripts",
